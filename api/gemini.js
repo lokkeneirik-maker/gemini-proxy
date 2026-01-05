@@ -22,9 +22,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing imageBase64" });
     }
 
-    // 🔥 EKTE GEMINI-KALL
+    // 🔥 EKTE GEMINI-KALL — RIKTIG MODELL
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${process.env.GEMINI_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,9 +34,9 @@ export default async function handler(req, res) {
               parts: [
                 {
                   text:
-                    "Extract the total amount and store name from this receipt. " +
-                    "Return ONLY JSON like this: {\"amount\":\"123.45\",\"store\":\"Rema 1000\"}. " +
-                    "Do not include explanations."
+                    "You are reading a receipt. Extract ONLY the total amount and the store name. " +
+                    "Return STRICT JSON like this: {\"amount\":\"123.45\",\"store\":\"Rema 1000\"}. " +
+                    "Do not add explanations, comments, or extra text."
                 },
                 {
                   inlineData: {
@@ -57,7 +57,10 @@ export default async function handler(req, res) {
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
-      return res.status(500).json({ error: "No text returned from Gemini", raw: data });
+      return res.status(500).json({
+        error: "No text returned from Gemini",
+        raw: data
+      });
     }
 
     // Prøv å parse JSON
@@ -72,8 +75,4 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json(parsed);
-  } catch (err) {
-    console.error("Gemini proxy error:", err);
-    return res.status(500).json({ error: "Internal server error" });
   }
-}
