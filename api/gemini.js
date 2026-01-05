@@ -1,17 +1,16 @@
 // api/gemini.js
 
 export default async function handler(req, res) {
-  // ✅ Sett CORS-headere
+  // CORS-headere
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // ✅ Håndter preflight (OPTIONS)
+  // Preflight
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  // ✅ Kun POST tillatt
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST allowed" });
   }
@@ -23,26 +22,56 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing imageBase64" });
     }
 
-    // Her kaller du Gemini API med nøkkelen fra miljøvariabelen
-    // Eksempel (pseudo):
-    // const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=" + process.env.GEMINI_KEY, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({
-    //     contents: [{
-    //       parts: [
-    //         { text: "Extract amount and store from this receipt" },
-    //         { inlineData: { mimeType: "image/jpeg", data: imageBase64 } }
-    //       ]
-    //     }]
-    //   })
-    // });
-    // const data = await response.json();
+    // 🔥 EKTE GEMINI-KALL
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${process.env.GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text:
+                    "Extract the total amount and store name from this receipt. " +
+                    "Return ONLY JSON like this: {\"amount\":\"123.45\",\"store\":\"Rema 1000\"}. " +
+                    "Do not include explanations."
+                },
+                {
+                  inlineData: {
+                    mimeType: "image/jpeg",
+                    data: imageBase64
+                  }
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-    // Midlertidig dummy-respons for testing:
-    const data = { amount: "123.45", store: "Rema 1000" };
+    const data = await geminiResponse.json();
 
-    return res.status(200).json(data);
+    // Hent tekst fra Gemini
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      return res.status(500).json({ error: "No text returned from Gemini", raw: data });
+    }
+
+    // Prøv å parse JSON
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      return res.status(500).json({
+        error: "Could not parse JSON from Gemini",
+        rawText: text
+      });
+    }
+
+    return res.status(200).json(parsed);
   } catch (err) {
     console.error("Gemini proxy error:", err);
     return res.status(500).json({ error: "Internal server error" });
